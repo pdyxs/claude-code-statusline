@@ -60,12 +60,6 @@ run_make_bar() {
     make_bar "$1"
 }
 
-count_char() {
-    # Count multibyte chars: pipe through python3 to count unicode chars
-    local char="$1" str="$2"
-    python3 -c "print('${str}'.count('${char}'))" 2>/dev/null || echo "0"
-}
-
 # pct=0 → 8 empty blocks
 run_make_bar 0
 assert_eq "pct=0: BAR_STR is 8 empty blocks" "░░░░░░░░" "$BAR_STR"

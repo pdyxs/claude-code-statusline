@@ -38,7 +38,14 @@ if [ ${#MISSING[@]} -gt 0 ]; then
     echo ""
     read -rp "Install missing packages (${MISSING[*]})? [Y/n] " answer
     if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
-        sudo apt install -y "${MISSING[@]}"
+        if command -v apt >/dev/null 2>&1; then
+            sudo apt install -y "${MISSING[@]}"
+        elif command -v brew >/dev/null 2>&1; then
+            brew install "${MISSING[@]}"
+        else
+            echo "  Could not detect package manager (apt/brew). Please install manually: ${MISSING[*]}"
+            exit 1
+        fi
         echo "  Packages installed."
     else
         echo "  Skipped. Some features may not work without: ${MISSING[*]}"
@@ -61,7 +68,9 @@ chmod +x "$HOOKS_DIR/statusline.sh"
 
 # Apply custom refresh interval if provided
 if [ -n "$CUSTOM_REFRESH" ]; then
-    sed -i "s/REFRESH_INTERVAL=\"\${REFRESH_INTERVAL:-[0-9]*}\"/REFRESH_INTERVAL=\"\${REFRESH_INTERVAL:-$CUSTOM_REFRESH}\"/" "$HOOKS_DIR/statusline.sh"
+    tmp="$(mktemp)"
+    sed "s/REFRESH_INTERVAL=\"\${REFRESH_INTERVAL:-[0-9]*}\"/REFRESH_INTERVAL=\"\${REFRESH_INTERVAL:-$CUSTOM_REFRESH}\"/" "$HOOKS_DIR/statusline.sh" > "$tmp"
+    mv "$tmp" "$HOOKS_DIR/statusline.sh"
     echo "  Refresh interval set to ${CUSTOM_REFRESH}s"
 fi
 
