@@ -139,7 +139,7 @@ assert_contains "contains '34%'" "34%" "$OUT"
 # Test 2 — Opus model + git branch
 echo ""
 echo "-- Test 2: Opus model + git branch --"
-REPO_DIR="/home/odilon/work/claude-code-statusline"
+REPO_DIR="$(dirname "$(realpath "$0")")"
 GIT_BRANCH=$(git -C "$REPO_DIR" symbolic-ref --short HEAD 2>/dev/null)
 OUT=$(run_statusline "{\"model\": \"claude-opus-4-6\", \"context_window\": {\"used_percentage\": 0}, \"workspace\": {\"current_dir\": \"$REPO_DIR\"}}" \
     USAGE_FILE=/dev/null)

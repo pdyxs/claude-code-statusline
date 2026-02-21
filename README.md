@@ -10,7 +10,7 @@
 
 Claude Code has rate limits but no built-in way to see them while you work. The `/usage` command exists, but you have to stop what you're doing to check it manually.
 
-This script **automatically scrapes `/usage` in the background** and displays the results directly in your status line — session rate limit, weekly quota, reset countdown, all updated every 5 minutes.
+This script **automatically scrapes `/usage` in the background** and displays the results directly in your status line — session rate limit, weekly quota, reset countdown, all updated every 10 minutes.
 
 ## What you get
 
@@ -27,7 +27,7 @@ All three metrics use color-coded progress bars: 🟢 under 50% | 🟡 50-80% | 
 
 ## How it works
 
-Every 5 minutes (configurable), the script silently launches a **background tmux session**, opens Claude Code, runs `/usage`, parses the output, and caches the result. Your active session is never interrupted — the scraping happens in a completely separate process.
+Every 10 minutes (configurable), the script silently launches a **background tmux session**, opens Claude Code, runs `/usage`, parses the output, and caches the result. Your active session is never interrupted — the scraping happens in a completely separate process.
 
 The cached data (`~/.claude/usage-exact.json`) is then read on each status line render to display up-to-date rate limit info. Timezone is automatically extracted from the `/usage` output for correct display regardless of your server's location.
 

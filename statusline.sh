@@ -262,7 +262,7 @@ if [ -f "$USAGE_FILE" ]; then
 
         if [ -n "$U_SESS_RESETS" ] && [ "$U_SESS_RESETS" != "null" ]; then
             # Extract timezone from the reset string, e.g. "7pm (Europe/Paris)" → "Europe/Paris"
-            RESET_TZ=$(echo "$U_SESS_RESETS" | grep -oP '\(([^)]+)\)' | tr -d '()')
+            RESET_TZ=$(echo "$U_SESS_RESETS" | sed -n 's/.*(\([^)]*\)).*/\1/p')
             [ -z "$RESET_TZ" ] && RESET_TZ="${TIMEZONE}"
             RESET_TIME_STR=$(echo "$U_SESS_RESETS" | sed 's/ *([^)]*)//')
             RESET_EPOCH=$(tz_date "${RESET_TZ}" -d "today $RESET_TIME_STR" +%s 2>/dev/null)
@@ -296,7 +296,7 @@ if [ -f "$USAGE_FILE" ]; then
 
         if [ -n "$U_WEEK_RESETS" ] && [ "$U_WEEK_RESETS" != "null" ]; then
             # Extract timezone from reset string, e.g. "Feb 23, 2pm (Europe/Paris)"
-            WEEK_TZ=$(echo "$U_WEEK_RESETS" | grep -oP '\(([^)]+)\)' | tr -d '()')
+            WEEK_TZ=$(echo "$U_WEEK_RESETS" | sed -n 's/.*(\([^)]*\)).*/\1/p')
             [ -z "$WEEK_TZ" ] && WEEK_TZ="${TIMEZONE}"
             # Strip timezone annotation and let date parse directly (handles "Feb 23, 1:59pm")
             DATE_PART=$(echo "$U_WEEK_RESETS" | sed 's/ *([^)]*)//' | sed 's/,//')
