@@ -7,7 +7,7 @@
 # License: MIT
 #
 # Output format:
-# 🌿 branch │ 🤖 model │ 🟢 Ctx: ▓▓░░░░░░ XX% │ ⏱ XX% → HHhMM (Xhm) │ 📅 ~XX% (mon 14h)
+# 🌿 branch │ 🤖 model │ 🟢 Ctx ▓▓░░░░░░ XX% │ 🟡 ▓▓▓░░░░░ XX% → HHhMM (Xhm) │ 🔴 ▓▓▓▓░░░░ XX% (mon 14h)
 #
 # Install: see README.md or run install.sh
 # ════════════════════════════════════════════════════════════════════════════
@@ -52,18 +52,26 @@ esac
 CTX_PERCENT=$(echo "$JSON" | jq -r '.context_window.used_percentage // 0' 2>/dev/null | cut -d. -f1)
 CTX_PERCENT=${CTX_PERCENT:-0}
 
-# ── Build the context usage progress bar (8 blocks) ──────────────────────────
-FILLED=$(( CTX_PERCENT / 13 )); [ $FILLED -gt 8 ] && FILLED=8
-EMPTY=$(( 8 - FILLED ))
-BAR=""
-for i in $(seq 1 $FILLED 2>/dev/null); do BAR="${BAR}▓"; done
-for i in $(seq 1 $EMPTY  2>/dev/null); do BAR="${BAR}░"; done
+# ── Reusable helper: color emoji + 8-block progress bar for a given percent ───
+# Usage: make_bar <percent>
+# Sets global BAR_COLOR and BAR_STR
+make_bar() {
+    local pct="$1"
+    local filled=$(( pct / 13 )); [ $filled -gt 8 ] && filled=8
+    local empty=$(( 8 - filled ))
+    BAR_STR=""
+    for i in $(seq 1 $filled 2>/dev/null); do BAR_STR="${BAR_STR}▓"; done
+    for i in $(seq 1 $empty  2>/dev/null); do BAR_STR="${BAR_STR}░"; done
+    if   [ "$pct" -lt 50 ]; then BAR_COLOR="🟢"
+    elif [ "$pct" -lt 80 ]; then BAR_COLOR="🟡"
+    else                         BAR_COLOR="🔴"
+    fi
+}
 
-# ── Color indicator based on context usage level ─────────────────────────────
-if   [ "$CTX_PERCENT" -lt 50 ]; then COLOR="🟢"
-elif [ "$CTX_PERCENT" -lt 80 ]; then COLOR="🟡"
-else                                  COLOR="🔴"
-fi
+# ── Build context bar ─────────────────────────────────────────────────────────
+make_bar "$CTX_PERCENT"
+CTX_COLOR="$BAR_COLOR"
+CTX_BAR="$BAR_STR"
 
 # ── Git branch for the current workspace ─────────────────────────────────────
 CWD=$(echo "$JSON" | jq -r '.workspace.current_dir // ""' 2>/dev/null)
@@ -250,12 +258,13 @@ if [ -f "$USAGE_FILE" ]; then
             fi
         fi
 
+        make_bar "$SESS_INT"
         if [ -n "$RESET_TIME" ] && [ -n "$REMAIN_STR" ]; then
-            BLOCK_DISPLAY="⏱ ${SESS_INT}% → ${RESET_TIME} (${REMAIN_STR})"
+            BLOCK_DISPLAY="${BAR_COLOR} ${BAR_STR} ${SESS_INT}% → ${RESET_TIME} (${REMAIN_STR})"
         elif [ -n "$RESET_TIME" ]; then
-            BLOCK_DISPLAY="⏱ ${SESS_INT}% → ${RESET_TIME}"
+            BLOCK_DISPLAY="${BAR_COLOR} ${BAR_STR} ${SESS_INT}% → ${RESET_TIME}"
         else
-            BLOCK_DISPLAY="⏱ ${SESS_INT}%"
+            BLOCK_DISPLAY="${BAR_COLOR} ${BAR_STR} ${SESS_INT}%"
         fi
     fi
 
@@ -276,9 +285,10 @@ if [ -f "$USAGE_FILE" ]; then
                     | tr '[:upper:]' '[:lower:]')
         fi
 
+        make_bar "$WEEK_INT"
         [ -n "$WEEK_RESET_LABEL" ] \
-            && WEEK_DISPLAY="📅 ~${WEEK_INT}% (${WEEK_RESET_LABEL})" \
-            || WEEK_DISPLAY="📅 ~${WEEK_INT}%"
+            && WEEK_DISPLAY="${BAR_COLOR} ${BAR_STR} ${WEEK_INT}% (${WEEK_RESET_LABEL})" \
+            || WEEK_DISPLAY="${BAR_COLOR} ${BAR_STR} ${WEEK_INT}%"
     fi
 fi
 
@@ -286,7 +296,7 @@ fi
 PARTS=()
 [ -n "$BRANCH" ]        && PARTS+=("🌿 $BRANCH")
 [ -n "$MODEL" ]         && PARTS+=("🤖 $MODEL")
-[ -n "$CTX_PERCENT" ]   && PARTS+=("$COLOR Ctx: $BAR ${CTX_PERCENT}%")
+[ -n "$CTX_PERCENT" ]   && PARTS+=("$CTX_COLOR Ctx $CTX_BAR ${CTX_PERCENT}%")
 [ -n "$BLOCK_DISPLAY" ] && PARTS+=("$BLOCK_DISPLAY")
 [ -n "$WEEK_DISPLAY" ]  && PARTS+=("$WEEK_DISPLAY")
 
