@@ -3,7 +3,7 @@
 **Know your Claude Code rate limits in real time.** No more guessing when your session or weekly quota resets — see your actual `/usage` data live in the status bar.
 
 ```
-🌿 main │ 🤖 Sonnet 4.6 │ 🟢 Ctx ▓▓░░░░░░ 34% │ 🟡 ▓▓▓░░░░░ 46% → 19h00 (3h20m) │ 🔴 ▓▓▓▓▓░░░ 59% (mon 14h)
+🌿 main │ 🤖 Sonnet 4.6 │ 🟢 Ctx ▓▓░░░░░░ 34% │ 🟡 ▓▓▓░░░░░ 46% → 19h00 (3h20m) │ 🟡 ▓▓▓░░░░░ 42% Snt │ 🔴 ▓▓▓▓▓░░░ 59% (mon 14h)
 ```
 
 ## Why?
@@ -19,6 +19,7 @@ All three metrics use color-coded progress bars: 🟢 under 50% | 🟡 50-80% | 
 | Segment | Example | Description |
 |---------|---------|-------------|
 | **Session** | `🟡 ▓▓▓░░░░░ 46% → 19h00 (3h20m)` | Rate limit usage, reset time, countdown |
+| **Sonnet weekly** | `🟡 ▓▓▓░░░░░ 42% Snt` | Weekly Sonnet-specific quota usage |
 | **Weekly** | `🔴 ▓▓▓▓▓░░░ 59% (mon 14h)` | Weekly quota usage, next reset |
 | **Context** | `🟢 Ctx ▓▓░░░░░░ 34%` | Context window usage |
 | **Model** | `🤖 Sonnet 4.6` | Active Claude model |
@@ -29,6 +30,10 @@ All three metrics use color-coded progress bars: 🟢 under 50% | 🟡 50-80% | 
 Every 5 minutes (configurable), the script silently launches a **background tmux session**, opens Claude Code, runs `/usage`, parses the output, and caches the result. Your active session is never interrupted — the scraping happens in a completely separate process.
 
 The cached data (`~/.claude/usage-exact.json`) is then read on each status line render to display up-to-date rate limit info. Timezone is automatically extracted from the `/usage` output for correct display regardless of your server's location.
+
+A ⚠ indicator appears next to usage metrics when cached data is older than twice the refresh interval, so you know the data might be outdated.
+
+The background scraper has a global 120-second timeout to prevent zombie tmux sessions from accumulating.
 
 ## Install
 
@@ -65,7 +70,7 @@ chmod +x ~/.claude/hooks/statusline.sh
 
 ## Requirements
 
-- Linux or WSL (macOS: untested, contributions welcome)
+- Linux, WSL, or macOS
 - `bash`, `jq`, `tmux`, `python3`
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI installed
 
@@ -77,6 +82,12 @@ Edit the top of `statusline.sh` or export in your shell profile:
 |----------|---------|-------------|
 | `TIMEZONE` | *(auto-detected)* | Override display timezone (e.g. `America/New_York`) |
 | `REFRESH_INTERVAL` | `600` | Seconds between `/usage` scrapes |
+
+## Testing
+
+```bash
+bash test_statusline.sh
+```
 
 ## Troubleshooting
 
