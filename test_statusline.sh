@@ -111,6 +111,16 @@ assert_eq "pct=80:  BAR_COLOR is red"    "🔴" "$BAR_COLOR"
 run_make_bar 100
 assert_eq "pct=100: BAR_COLOR is red"    "🔴" "$BAR_COLOR"
 
+echo ""
+echo "-- Test 11: make_bar boundary 79% is yellow --"
+run_make_bar 79
+assert_eq "pct=79: BAR_COLOR is yellow" "🟡" "$BAR_COLOR"
+
+echo ""
+echo "-- Test 12: make_bar 1% has at least 1 filled block --"
+run_make_bar 1
+assert_contains "pct=1: has filled block" "▓" "$BAR_STR"
+
 # ── Integration tests ─────────────────────────────────────────────────────────
 echo ""
 echo "=== Integration tests ==="
@@ -241,6 +251,80 @@ OUT=$(run_statusline '{"model": "claude-sonnet-4-6", "context_window": {"used_pe
     USAGE_FILE="$USAGE_SNT" REFRESH_INTERVAL=999999)
 assert_contains "week_sonnet 72% shown"   "72%" "$OUT"
 assert_contains "week_sonnet Snt label"   "Snt" "$OUT"
+
+# Test 7 — Haiku model detection
+echo ""
+echo "-- Test 7: Haiku model detection --"
+OUT=$(run_statusline '{"model": "claude-haiku-4-5-20251001", "context_window": {"used_percentage": 10}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "contains 'Haiku 4'" "Haiku 4" "$OUT"
+
+# Test 8 — Display name with "Default (...)" wrapper
+echo ""
+echo "-- Test 8: display_name Default() unwrap --"
+OUT=$(run_statusline '{"model": {"display_name": "Default (Claude Sonnet 4.5)"}, "context_window": {"used_percentage": 0}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "unwraps Default() to 'Sonnet 4.5'" "Sonnet 4.5" "$OUT"
+
+# Test 9 — Context bar at 0% is all empty blocks
+echo ""
+echo "-- Test 9: context bar at 0% --"
+OUT=$(run_statusline '{"model": "claude-sonnet-4-6", "context_window": {"used_percentage": 0}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "0% bar is all empty" "░░░░░░░░" "$OUT"
+
+# Test 10 — Context bar at 100% is all full blocks
+echo ""
+echo "-- Test 10: context bar at 100% --"
+OUT=$(run_statusline '{"model": "claude-sonnet-4-6", "context_window": {"used_percentage": 100}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "100% bar is all full" "▓▓▓▓▓▓▓▓" "$OUT"
+
+# Test 13 — Missing usage file shows no usage data
+echo ""
+echo "-- Test 13: missing usage file shows no usage bars --"
+OUT=$(run_statusline '{"model": "claude-sonnet-4-6", "context_window": {"used_percentage": 20}}' \
+    USAGE_FILE=/tmp/nonexistent-file-xxxxx.json)
+assert_not_contains "no Snt label without cache" "Snt" "$OUT"
+
+# Test 14 — Branch emoji always present
+echo ""
+echo "-- Test 14: branch emoji present --"
+REPO_DIR="$(dirname "$(realpath "$0")")"
+OUT=$(run_statusline "{\"model\": \"claude-sonnet-4-6\", \"context_window\": {\"used_percentage\": 0}, \"workspace\": {\"current_dir\": \"$REPO_DIR\"}}" \
+    USAGE_FILE=/dev/null)
+assert_contains "branch emoji present" "🌿" "$OUT"
+
+# Test 15 — All three metrics together
+echo ""
+echo "-- Test 15: all three metrics displayed --"
+USAGE_ALL=$(mktemp /tmp/test-usage-all-XXXX.json)
+TMPFILES+=("$USAGE_ALL")
+cat > "$USAGE_ALL" <<'JSON'
+{
+  "timestamp": "2026-02-21T10:00:00+00:00",
+  "source": "/usage",
+  "metrics": {
+    "session": {"percent_used": 30.0, "percent_remaining": 70.0, "resets": null},
+    "week_all": {"percent_used": 60.0, "percent_remaining": 40.0, "resets": null},
+    "week_sonnet": {"percent_used": 45.0, "percent_remaining": 55.0, "resets": null}
+  }
+}
+JSON
+OUT=$(run_statusline '{"model": "claude-sonnet-4-6", "context_window": {"used_percentage": 10}}' \
+    USAGE_FILE="$USAGE_ALL" REFRESH_INTERVAL=999999)
+assert_contains "session 30%" "30%" "$OUT"
+assert_contains "week_all 60%" "60%" "$OUT"
+assert_contains "week_sonnet 45%" "45%" "$OUT"
+assert_contains "separator present" "│" "$OUT"
+
+# Test 16 — Display name parenthetical stripped
+echo ""
+echo "-- Test 16: display_name strips parenthetical --"
+OUT=$(run_statusline '{"model": {"display_name": "Claude Opus 4.6 (some info)"}, "context_window": {"used_percentage": 0}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "shows 'Opus 4.6'" "Opus 4.6" "$OUT"
+assert_not_contains "strips parenthetical" "(some info)" "$OUT"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
