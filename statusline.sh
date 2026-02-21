@@ -57,11 +57,12 @@ CTX_PERCENT=${CTX_PERCENT:-0}
 # Sets global BAR_COLOR and BAR_STR
 make_bar() {
     local pct="$1"
-    local filled=$(( pct / 13 )); [ $filled -gt 8 ] && filled=8
+    local filled=$(( (pct * 8 + 99) / 100 )); [ $filled -gt 8 ] && filled=8
     local empty=$(( 8 - filled ))
     BAR_STR=""
-    for i in $(seq 1 $filled 2>/dev/null); do BAR_STR="${BAR_STR}▓"; done
-    for i in $(seq 1 $empty  2>/dev/null); do BAR_STR="${BAR_STR}░"; done
+    local i
+    for ((i=0; i<filled; i++)); do BAR_STR="${BAR_STR}▓"; done
+    for ((i=0; i<empty;  i++)); do BAR_STR="${BAR_STR}░"; done
     if   [ "$pct" -lt 50 ]; then BAR_COLOR="🟢"
     elif [ "$pct" -lt 80 ]; then BAR_COLOR="🟡"
     else                         BAR_COLOR="🔴"
@@ -221,18 +222,21 @@ fi
 # ── Read cached usage metrics ─────────────────────────────────────────────────
 BLOCK_DISPLAY=""
 WEEK_DISPLAY=""
+SONNET_DISPLAY=""
 
 if [ -f "$USAGE_FILE" ]; then
     mapfile -t uvals < <(jq -r '
         (.metrics.session.percent_used     // ""),
         (.metrics.session.resets           // ""),
         (.metrics.week_all.percent_used    // ""),
-        (.metrics.week_all.resets          // "")
+        (.metrics.week_all.resets          // ""),
+        (.metrics.week_sonnet.percent_used // "")
     ' "$USAGE_FILE" 2>/dev/null)
     U_SESS_PCT="${uvals[0]}"
     U_SESS_RESETS="${uvals[1]}"
     U_WEEK_PCT="${uvals[2]}"
     U_WEEK_RESETS="${uvals[3]}"
+    U_SONNET_PCT="${uvals[4]}"
 
     # ── Session block: "⏱ XX% → HHhMM (Xhm)" ────────────────────────────────
     if [ -n "$U_SESS_PCT" ] && [ "$U_SESS_PCT" != "null" ]; then
@@ -290,15 +294,35 @@ if [ -f "$USAGE_FILE" ]; then
             && WEEK_DISPLAY="${BAR_COLOR} ${BAR_STR} ${WEEK_INT}% (${WEEK_RESET_LABEL})" \
             || WEEK_DISPLAY="${BAR_COLOR} ${BAR_STR} ${WEEK_INT}%"
     fi
+
+    # ── Sonnet weekly block: "🟢 ▓▓░░░░░░ XX% Snt" ───────────────────────────
+    if [ -n "$U_SONNET_PCT" ] && [ "$U_SONNET_PCT" != "null" ]; then
+        SONNET_INT="${U_SONNET_PCT%.*}"
+        make_bar "$SONNET_INT"
+        SONNET_DISPLAY="${BAR_COLOR} ${BAR_STR} ${SONNET_INT}% Snt"
+    fi
 fi
+
+# ── Stale cache indicator ─────────────────────────────────────────────────────
+STALE_SUFFIX=""
+if [ -f "$USAGE_FILE" ]; then
+    AGE=$(cache_age_sec)
+    if [ "$AGE" -gt $(( REFRESH_INTERVAL * 2 )) ]; then
+        STALE_SUFFIX=" ⚠"
+    fi
+fi
+[ -n "$BLOCK_DISPLAY"  ] && BLOCK_DISPLAY="${BLOCK_DISPLAY}${STALE_SUFFIX}"
+[ -n "$WEEK_DISPLAY"   ] && WEEK_DISPLAY="${WEEK_DISPLAY}${STALE_SUFFIX}"
+[ -n "$SONNET_DISPLAY" ] && SONNET_DISPLAY="${SONNET_DISPLAY}${STALE_SUFFIX}"
 
 # ── Assemble the final status line, joining parts with " │ " ─────────────────
 PARTS=()
-[ -n "$BRANCH" ]        && PARTS+=("🌿 $BRANCH")
-[ -n "$MODEL" ]         && PARTS+=("🤖 $MODEL")
-[ -n "$CTX_PERCENT" ]   && PARTS+=("$CTX_COLOR Ctx $CTX_BAR ${CTX_PERCENT}%")
-[ -n "$BLOCK_DISPLAY" ] && PARTS+=("$BLOCK_DISPLAY")
-[ -n "$WEEK_DISPLAY" ]  && PARTS+=("$WEEK_DISPLAY")
+[ -n "$BRANCH" ]          && PARTS+=("🌿 $BRANCH")
+[ -n "$MODEL" ]           && PARTS+=("🤖 $MODEL")
+[ -n "$CTX_PERCENT" ]     && PARTS+=("$CTX_COLOR Ctx $CTX_BAR ${CTX_PERCENT}%")
+[ -n "$BLOCK_DISPLAY" ]   && PARTS+=("$BLOCK_DISPLAY")
+[ -n "$SONNET_DISPLAY" ]  && PARTS+=("$SONNET_DISPLAY")
+[ -n "$WEEK_DISPLAY" ]    && PARTS+=("$WEEK_DISPLAY")
 
 RESULT=""
 for part in "${PARTS[@]}"; do
