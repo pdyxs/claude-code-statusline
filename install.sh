@@ -1,8 +1,17 @@
 #!/bin/bash
 # install.sh — Claude Code Status Line installer
-# Usage: bash install.sh
-#    or: curl -fsSL https://raw.githubusercontent.com/ohugonnot/claude-code-statusline/main/install.sh | bash
+# Usage: bash install.sh [--refresh SECONDS]
+#    or: curl -fsSL https://raw.githubusercontent.com/ohugonnot/claude-code-statusline/main/install.sh | bash -s -- --refresh 60
 set -euo pipefail
+
+# Parse arguments
+CUSTOM_REFRESH=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --refresh) CUSTOM_REFRESH="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
 
 REPO_RAW="https://raw.githubusercontent.com/ohugonnot/claude-code-statusline/main"
 HOOKS_DIR="$HOME/.claude/hooks"
@@ -36,6 +45,12 @@ else
     curl -fsSL "$REPO_RAW/statusline.sh" -o "$HOOKS_DIR/statusline.sh"
 fi
 chmod +x "$HOOKS_DIR/statusline.sh"
+
+# Apply custom refresh interval if provided
+if [ -n "$CUSTOM_REFRESH" ]; then
+    sed -i "s/REFRESH_INTERVAL=\"\${REFRESH_INTERVAL:-300}\"/REFRESH_INTERVAL=\"\${REFRESH_INTERVAL:-$CUSTOM_REFRESH}\"/" "$HOOKS_DIR/statusline.sh"
+    echo "  Refresh interval set to ${CUSTOM_REFRESH}s"
+fi
 
 echo "  Installed: $HOOKS_DIR/statusline.sh"
 
