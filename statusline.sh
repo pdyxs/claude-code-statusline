@@ -338,8 +338,8 @@ PARTS=()
 [ -n "$MODEL" ]           && PARTS+=("🤖 $MODEL")
 [ -n "$CTX_PERCENT" ]     && PARTS+=("$CTX_COLOR Ctx $CTX_BAR ${CTX_PERCENT}%")
 [ -n "$BLOCK_DISPLAY" ]   && PARTS+=("$BLOCK_DISPLAY")
-[ -n "$SONNET_DISPLAY" ]  && PARTS+=("$SONNET_DISPLAY")
-[ -n "$WEEK_DISPLAY" ]    && PARTS+=("$WEEK_DISPLAY")
+# [ -n "$SONNET_DISPLAY" ]  && PARTS+=("$SONNET_DISPLAY")  # Removed: takes too much space
+# [ -n "$WEEK_DISPLAY" ]    && PARTS+=("$WEEK_DISPLAY")  # Removed: takes too much space
 
 RESULT=""
 for part in "${PARTS[@]}"; do

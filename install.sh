@@ -82,15 +82,34 @@ echo "Configuring Claude Code..."
 
 STATUS_LINE_CONFIG='{"type":"command","command":"bash ~/.claude/hooks/statusline.sh"}'
 
+SESSION_START_CONFIG='{
+  "SessionStart": [
+    {
+      "matcher": "startup|resume",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash ~/.claude/hooks/statusline.sh < /dev/null"
+        }
+      ]
+    }
+  ]
+}'
+
 if [ -f "$SETTINGS_FILE" ]; then
     tmp="$(mktemp)"
-    jq --argjson sl "$STATUS_LINE_CONFIG" '. + {statusLine: $sl}' "$SETTINGS_FILE" > "$tmp"
+    jq --argjson sl "$STATUS_LINE_CONFIG" --argjson ss "$SESSION_START_CONFIG" '
+      .statusLine = $sl |
+      .hooks = ((.hooks // {}) * $ss)
+    ' "$SETTINGS_FILE" > "$tmp"
     mv "$tmp" "$SETTINGS_FILE"
-    echo "  Merged statusLine into existing settings.json"
+    echo "  Merged statusLine + SessionStart hook into existing settings.json"
 else
     mkdir -p "$(dirname "$SETTINGS_FILE")"
-    jq -n --argjson sl "$STATUS_LINE_CONFIG" '{statusLine: $sl}' > "$SETTINGS_FILE"
-    echo "  Created settings.json with statusLine config"
+    jq -n --argjson sl "$STATUS_LINE_CONFIG" --argjson ss "$SESSION_START_CONFIG" '
+      {statusLine: $sl, hooks: $ss}
+    ' > "$SETTINGS_FILE"
+    echo "  Created settings.json with statusLine + SessionStart hook"
 fi
 
 # 4. Done
