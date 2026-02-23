@@ -108,9 +108,21 @@ cache_age_sec() {
 
 # ── Helper: true if a scraper is already running ──────────────────────────────
 scraper_running() {
-    # If the tmux session exists, a scraper is active
-    tmux has-session -t "$TMUX_SESSION" 2>/dev/null && return 0
-    # If lock exists but tmux is dead, check if stale
+    if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
+        # Session exists — but is the scraper still alive?
+        # If the lock file is older than the watchdog timeout, the scraper is dead
+        # and the tmux session is a zombie shell. Kill it.
+        if [ -f "$LOCK_FILE" ]; then
+            local age=$(( $(date +%s) - $(file_mtime "$LOCK_FILE") ))
+            if [ $age -gt 150 ]; then
+                tmux kill-session -t "$TMUX_SESSION" 2>/dev/null
+                rm -f "$LOCK_FILE"
+                return 1
+            fi
+        fi
+        return 0
+    fi
+    # No tmux session — check lock file freshness as fallback
     [ ! -f "$LOCK_FILE" ] && return 1
     local age=$(( $(date +%s) - $(file_mtime "$LOCK_FILE") ))
     [ $age -le 120 ]
@@ -235,6 +247,8 @@ if result['metrics']:
         json.dump(result, f, indent=2)
 "
 rm -f "\$TMPRAW"
+# Explicitly kill the tmux session before exiting (don't rely solely on trap)
+tmux kill-session -t "\$SESSION" 2>/dev/null
 SCRAPER_EOF
         chmod +x "$SCRAPER"
         nohup setsid "$SCRAPER" >/dev/null 2>&1 &
