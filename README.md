@@ -3,7 +3,7 @@
 **Know your Claude Code rate limits in real time.** No more guessing when your session or weekly quota resets — see your actual usage data live in the status bar.
 
 ```
-🌿 main★ │ Opus 4.6 │ 🟢 Ctx ▓▓▓░░ 42% │ ⏳ 🟡 ▓▓░░░ 35% ↻ 2h30m
+🌿 main★ │ Opus 4.6 │ 🟢 Ctx ▓▓▓░░░ 42% │ ⏳ 🟡 ▓▓░░░░ 35% ↻ 2h30m │ $0.42 ⏱ 1h4m
 ```
 
 ## Why?
@@ -19,14 +19,15 @@ Color-coded progress bars: 🟢 under 50% │ 🟡 50-80% │ 🔴 over 80%
 | Segment | Example | Description |
 |---------|---------|-------------|
 | **Git** | `🌿 main★` | Current branch + `★` if dirty |
-| **Model** | `Opus 4.6` | Active Claude model |
-| **Context** | `🟢 Ctx ▓▓▓░░ 42%` | Context window fill level |
-| **Session** | `⏳ 🟡 ▓▓░░░ 35% ↻ 2h30m` | 5-hour session quota + time until reset |
+| **Model** | `Opus 4.6` | Active model. With effort set: `Opus 4.6/mx` |
+| **Context** | `🟢 Ctx ▓▓▓░░░ 42%` | Context window fill. Shows `1M` for 1M context |
+| **Session** | `⏳ 🟡 ▓▓░░░░ 35% ↻ 2h30m` | 5-hour session quota + countdown to reset |
+| **Cost** | `$0.42 ⏱ 1h4m` | Session cost + wall-clock duration |
 
 With `SHOW_WEEKLY=1`:
 
 ```
-🌿 main★ │ Opus 4.6 │ 🟢 Ctx ▓▓▓░░ 42% │ ⏳ 🟡 ▓▓░░░ 35% ↻ 2h30m │ 📅 🟢 17% / Snt 🟢 10% ↻ thu 13h
+🌿 main★ │ Opus 4.6 │ 🟢 1M ▓▓▓░░░ 42% │ ⏳ 🟡 ▓▓░░░░ 35% ↻ 2h30m │ 📅 🟢 17% / Snt 🟢 10% ↻ thu 13h │ $0.42 ⏱ 1h4m
 ```
 
 | Segment | Example | Description |
@@ -100,7 +101,7 @@ Export in your shell profile or edit the top of `statusline.sh`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REFRESH_INTERVAL` | `60` | Seconds between API calls |
+| `REFRESH_INTERVAL` | `0` | Seconds between API calls (0 = every render) |
 | `SHOW_WEEKLY` | `0` | Set to `1` to show weekly + Sonnet quotas |
 | `TIMEZONE` | *(system default)* | Override display timezone (e.g. `America/New_York`) |
 | `USAGE_FILE` | `~/.claude/usage-exact.json` | Cache file path |

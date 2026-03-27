@@ -6,12 +6,12 @@
 # Dependencies: bash, jq, curl
 # License: MIT
 #
-# Default: 🌿 main★ │ Snt 4.6 │ 🟢 Ctx ▓▓▓░░ 42% │ ⏳ 🟡 ▓▓░░░ 35% ↻ 2h30m │ $0.12 1h4m
+# Default: 🌿 main★ │ Snt 4.6 │ 🟢 Ctx ▓▓▓░░░ 42% │ ⏳ 🟡 ▓▓░░░░ 35% ↻ 2h30m │ $0.12 ⏱ 1h4m
 # ════════════════════════════════════════════════════════════════════════════
 
 # ── Configuration (override via environment variables) ────────────────────────
 TIMEZONE="${TIMEZONE:-}"                            # e.g. "America/New_York", empty = system default
-REFRESH_INTERVAL="${REFRESH_INTERVAL:-0}"            # seconds between API calls (0 = every message)
+REFRESH_INTERVAL="${REFRESH_INTERVAL:-0}"            # seconds between API calls (0 = every render)
 SHOW_WEEKLY="${SHOW_WEEKLY:-0}"                      # set to 1 to show weekly + sonnet quotas
 USAGE_FILE="${USAGE_FILE:-$HOME/.claude/usage-exact.json}"
 CREDENTIALS_FILE="${CREDENTIALS_FILE:-$HOME/.claude/.credentials.json}"
@@ -26,11 +26,20 @@ format_remaining() {
     local secs="$1"
     [ "$secs" -le 0 ] 2>/dev/null && return
     local h=$(( secs / 3600 )) m=$(( (secs % 3600) / 60 ))
-    if [ $h -gt 0 ]; then echo "${h}h${m}m"; else echo "${m}m"; fi
+    if [ $h -gt 0 ]; then echo "${h}h${m}m"
+    elif [ $m -gt 0 ]; then echo "${m}m"
+    else echo "<1m"
+    fi
 }
 
+# Cross-platform ISO 8601 → epoch (GNU date -d || BSD date -j)
 iso_to_epoch() {
-    date -d "$1" +%s 2>/dev/null
+    local iso="$1"
+    date -d "$iso" +%s 2>/dev/null && return
+    # macOS/BSD fallback: strip fractional seconds + offset, parse core
+    local core="${iso%%[+-]*}" tz_part="${iso##*[+-]}"
+    core="${core%%.*}"  # strip .fractional
+    date -jf "%Y-%m-%dT%H:%M:%S" "$core" +%s 2>/dev/null
 }
 
 file_mtime() {
@@ -48,7 +57,7 @@ cache_age_sec() {
     echo "$age"
 }
 
-# make_bar <percent> → sets BAR_COLOR and BAR_STR (5-block bar)
+# make_bar <percent> → sets BAR_COLOR and BAR_STR (6-block bar)
 make_bar() {
     local pct="$1"
     [ "$pct" -lt 0 ] 2>/dev/null && pct=0
@@ -68,14 +77,26 @@ make_bar() {
 # ── Read JSON input from stdin ────────────────────────────────────────────────
 JSON=$(cat)
 
+# ── Parse all stdin fields in a single jq call ───────────────────────────────
+IFS='|' read -r J_MODEL_DISPLAY J_MODEL_RAW J_CTX_PCT J_CTX_SIZE J_COST J_DURATION J_CWD \
+    < <(echo "$JSON" | jq -r '[
+        (if .model | type == "object" then .model.display_name // "" else "" end),
+        (if .model | type == "string" then .model else "" end),
+        (.context_window.used_percentage // 0 | tostring | split(".")[0]),
+        (.context_window.context_window_size // 0),
+        (.cost.total_cost_usd // ""),
+        (.cost.total_duration_ms // ""),
+        (.workspace.current_dir // "")
+    ] | join("|")' 2>/dev/null)
+
 # ── Model ─────────────────────────────────────────────────────────────────────
-MODEL=$(echo "$JSON" | jq -r '.model.display_name // empty' 2>/dev/null \
-    | sed 's/Default (\(.*\))/\1/' | sed 's/Claude //' | sed 's/ (.*//')
-[ -z "$MODEL" ] && MODEL=$(echo "$JSON" | jq -r '.model // empty' 2>/dev/null)
+MODEL="$J_MODEL_DISPLAY"
+MODEL=$(echo "$MODEL" | sed 's/Default (\(.*\))/\1/' | sed 's/Claude //' | sed 's/ (.*//')
+[ -z "$MODEL" ] && MODEL="$J_MODEL_RAW"
 case "$MODEL" in
   claude-sonnet-4-6*|Sonnet\ 4.6*) MODEL="Snt 4.6" ;;
   claude-sonnet-4-5*|Sonnet\ 4.5*) MODEL="Snt 4.5" ;;
-  claude-opus-4-6*|Opus\ 4*)       MODEL="Opus 4.6" ;;
+  claude-opus-4-6*|Opus\ 4.6*)     MODEL="Opus 4.6" ;;
   claude-opus-4-5*|Opus\ 4.5*)     MODEL="Opus 4.5" ;;
   claude-haiku-4*|Haiku\ 4*)       MODEL="Haiku 4"  ;;
 esac
@@ -93,28 +114,24 @@ if [ -f "$SETTINGS_FILE" ]; then
 fi
 
 # ── Context window ────────────────────────────────────────────────────────────
-CTX_PERCENT=$(echo "$JSON" | jq -r '.context_window.used_percentage // 0' 2>/dev/null | cut -d. -f1)
-CTX_PERCENT=${CTX_PERCENT:-0}
-CTX_SIZE=$(echo "$JSON" | jq -r '.context_window.context_window_size // 0' 2>/dev/null)
+CTX_PERCENT="${J_CTX_PCT:-0}"
 CTX_LABEL="Ctx"
-[ "$CTX_SIZE" -ge 900000 ] 2>/dev/null && CTX_LABEL="1M"
+[ "$J_CTX_SIZE" -ge 900000 ] 2>/dev/null && CTX_LABEL="1M"
 
 make_bar "$CTX_PERCENT"
 CTX_COLOR="$BAR_COLOR" CTX_BAR="$BAR_STR"
 
 # ── Session cost + duration ───────────────────────────────────────────────────
 COST_STR="" DURATION_STR=""
-COST_USD=$(echo "$JSON" | jq -r '.cost.total_cost_usd // empty' 2>/dev/null)
-DURATION_MS=$(echo "$JSON" | jq -r '.cost.total_duration_ms // empty' 2>/dev/null)
-if [ -n "$COST_USD" ] && [ "$COST_USD" != "0" ] && [ "$COST_USD" != "null" ]; then
-    COST_STR=$(printf '$%.2f' "$COST_USD" 2>/dev/null)
+if [ -n "$J_COST" ] && [ "$J_COST" != "0" ] && [ "$J_COST" != "null" ]; then
+    COST_STR=$(printf '$%.2f' "$J_COST" 2>/dev/null)
 fi
-if [ -n "$DURATION_MS" ] && [ "$DURATION_MS" != "0" ] && [ "$DURATION_MS" != "null" ]; then
-    DURATION_STR=$(format_remaining $(( DURATION_MS / 1000 )))
+if [ -n "$J_DURATION" ] && [ "$J_DURATION" != "0" ] && [ "$J_DURATION" != "null" ]; then
+    DURATION_STR=$(format_remaining $(( J_DURATION / 1000 )))
 fi
 
 # ── Git branch ────────────────────────────────────────────────────────────────
-CWD=$(echo "$JSON" | jq -r '.workspace.current_dir // ""' 2>/dev/null)
+CWD="$J_CWD"
 BRANCH="" DIRTY=""
 if [ -n "$CWD" ] && [ -d "$CWD" ]; then
     BRANCH=$(git -C "$CWD" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null)
@@ -170,20 +187,18 @@ BLOCK_DISPLAY="" WEEK_SONNET_DISPLAY=""
 NOW=$(date +%s)
 
 if [ -f "$USAGE_FILE" ]; then
-    CACHE_SOURCE=$(jq -r '.source // "legacy"' "$USAGE_FILE" 2>/dev/null)
-    mapfile -t uvals < <(jq -r '
-        (.metrics.session.percent_used     // ""),
-        (.metrics.session.resets_at        // .metrics.session.resets // ""),
-        (.metrics.week_all.percent_used    // ""),
-        (.metrics.week_all.resets_at       // .metrics.week_all.resets // ""),
-        (.metrics.week_sonnet.percent_used // "")
-    ' "$USAGE_FILE" 2>/dev/null)
+    # Single jq call to read all cache fields
+    IFS='|' read -r CACHE_SOURCE U_SESS_PCT U_SESS_RESETS U_WEEK_PCT U_WEEK_RESETS U_SONNET_PCT \
+        < <(jq -r '[
+            (.source // "legacy"),
+            (.metrics.session.percent_used     // ""),
+            (.metrics.session.resets_at        // .metrics.session.resets // ""),
+            (.metrics.week_all.percent_used    // ""),
+            (.metrics.week_all.resets_at       // .metrics.week_all.resets // ""),
+            (.metrics.week_sonnet.percent_used // "")
+        ] | join("|")' "$USAGE_FILE" 2>/dev/null)
 
-    if [ ${#uvals[@]} -ge 5 ]; then
-        U_SESS_PCT="${uvals[0]}" U_SESS_RESETS="${uvals[1]}"
-        U_WEEK_PCT="${uvals[2]}" U_WEEK_RESETS="${uvals[3]}"
-        U_SONNET_PCT="${uvals[4]}"
-
+    if [ -n "$CACHE_SOURCE" ]; then
         # Session block
         if [ -n "$U_SESS_PCT" ] && [ "$U_SESS_PCT" != "null" ]; then
             SESS_INT="${U_SESS_PCT%.*}"
@@ -247,7 +262,7 @@ fi
 
 # ── Stale indicator ───────────────────────────────────────────────────────────
 REFRESH_SUFFIX=""
-if [ -f "$USAGE_FILE" ] && [ "$REFRESH_INTERVAL" -gt 0 ]; then
+if [ -f "$USAGE_FILE" ] && [ "$REFRESH_INTERVAL" -gt 0 ] 2>/dev/null; then
     AGE=$(cache_age_sec)
     [ "$AGE" -gt $(( REFRESH_INTERVAL * 5 )) ] && REFRESH_SUFFIX=" ⚠"
 fi

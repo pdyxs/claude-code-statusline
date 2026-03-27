@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Real-time status line for Claude Code that displays rate limit usage in the IDE status bar. Fetches usage data via the Anthropic OAuth API every 60 seconds, caches results to JSON, and renders color-coded progress bars.
+Real-time status line for Claude Code that displays rate limit usage, session cost, model, git branch, and context window in the IDE status bar. Fetches usage data via the Anthropic OAuth API on every render, caches results to JSON, and renders color-coded progress bars.
 
 **Stack**: Bash, jq, curl. No build step, no external test framework.
 
@@ -65,7 +65,7 @@ Tracked upstream: [anthropics/claude-code#13585](https://github.com/anthropics/c
 | Variable | Default | Notes |
 |----------|---------|-------|
 | `TIMEZONE` | system | Override for display (e.g. `America/New_York`) |
-| `REFRESH_INTERVAL` | `60` | Seconds between API calls |
+| `REFRESH_INTERVAL` | `0` | Seconds between API calls (0 = every render) |
 | `SHOW_WEEKLY` | `0` | Set to `1` to show weekly + Sonnet quotas |
 | `USAGE_FILE` | `~/.claude/usage-exact.json` | Cache location |
 | `CREDENTIALS_FILE` | `~/.claude/.credentials.json` | OAuth token source |
