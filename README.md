@@ -101,7 +101,7 @@ Export in your shell profile or edit the top of `statusline.sh`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REFRESH_INTERVAL` | `0` | Seconds between API calls (0 = every render) |
+| `REFRESH_INTERVAL` | `60` | Seconds between API calls — **do not set to 0** (causes rate limiting) |
 | `SHOW_WEEKLY` | `0` | Set to `1` to show weekly + Sonnet quotas |
 | `TIMEZONE` | *(system default)* | Override display timezone (e.g. `America/New_York`) |
 | `USAGE_FILE` | `~/.claude/usage-exact.json` | Cache file path |
@@ -114,6 +114,11 @@ bash test_statusline.sh
 ```
 
 ## Troubleshooting
+
+**Usage display frozen / not updating?**
+You may have been rate-limited by the Anthropic API (e.g. `REFRESH_INTERVAL` was too low or set to `0`). Wait a few minutes, then test the API directly — a `rate_limit_error` response confirms it. Once the rate limit clears, the statusline resumes auto-updating.
+
+> **Multiple Claude Code windows?** All windows share the same cache file (`~/.claude/usage-exact.json`). Whichever window renders first past the 60s mark will call the API and refresh the cache for all others. You won't get multiple simultaneous API calls from the same machine.
 
 **Usage bars missing?**
 Check that `~/.claude/.credentials.json` exists and contains a valid `claudeAiOauth.accessToken`. This file is created automatically when you log into Claude Code.
