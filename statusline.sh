@@ -181,7 +181,10 @@ refresh_usage_api() {
     }' > "${USAGE_FILE}.tmp" && mv "${USAGE_FILE}.tmp" "$USAGE_FILE"
 }
 
-[ "$(cache_age_sec)" -gt "$REFRESH_INTERVAL" ] && refresh_usage_api
+LOCK_FILE="/tmp/statusline-refresh.lock"
+if [ "$(cache_age_sec)" -gt "$REFRESH_INTERVAL" ]; then
+    ( flock -n 9 || exit 0; refresh_usage_api ) 9>"$LOCK_FILE"
+fi
 
 # ── Read cached usage metrics ─────────────────────────────────────────────────
 BLOCK_DISPLAY="" WEEK_SONNET_DISPLAY=""
