@@ -265,15 +265,15 @@ fi
 
 # ── Terminal width → detail level ─────────────────────────────────────────────
 # Drop order as width shrinks: bars → colors → reset times
-# DETAIL 3 (≥100 cols): bars + colors + reset times + branch/model
-# DETAIL 2 (70–99 cols): colors + reset times, no bars or branch/model
-# DETAIL 1 (50–69 cols): reset times only, no bars or colors
-# DETAIL 0 (<50 cols):   % only, no bars, colors, or reset times
+# DETAIL 3 (≥70 cols): bars + colors + reset times + branch/model
+# DETAIL 2 (50–69 cols): colors + reset times, no bars or branch/model
+# DETAIL 1 (30–49 cols): reset times only, no bars or colors
+# DETAIL 0 (<30 cols):   % only, no bars, colors, or reset times
 TERM_WIDTH=${COLUMNS:-$(tput cols 2>/dev/null || echo 999)}
-if   [ "$TERM_WIDTH" -ge 100 ]; then DETAIL=3
-elif [ "$TERM_WIDTH" -ge 70  ]; then DETAIL=2
-elif [ "$TERM_WIDTH" -ge 50  ]; then DETAIL=1
-else                                  DETAIL=0
+if   [ "$TERM_WIDTH" -ge 70 ]; then DETAIL=3
+elif [ "$TERM_WIDTH" -ge 50 ]; then DETAIL=2
+elif [ "$TERM_WIDTH" -ge 30 ]; then DETAIL=1
+else                                 DETAIL=0
 fi
 
 # ── Build session display ─────────────────────────────────────────────────────
