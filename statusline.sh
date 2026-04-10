@@ -227,11 +227,8 @@ if [ -f "$USAGE_FILE" ]; then
                 fi
             fi
             make_bar "$SESS_INT"
-            if [ -n "$REMAIN_STR" ]; then
-                BLOCK_DISPLAY="⏳ ${BAR_COLOR} ${BAR_STR} ${SESS_INT}% ↻ ${REMAIN_STR}"
-            else
-                BLOCK_DISPLAY="⏳ ${BAR_COLOR} ${BAR_STR} ${SESS_INT}%"
-            fi
+            SESS_BAR_COLOR="$BAR_COLOR"
+            SESS_BAR_STR="$BAR_STR"
         fi
 
         # Weekly + Sonnet (opt-in)
@@ -257,39 +254,73 @@ if [ -f "$USAGE_FILE" ]; then
             SONNET_INT="${U_SONNET_PCT%.*}"
             make_bar "$SONNET_INT"; SONNET_COLOR="$BAR_COLOR"
         fi
-        if [ -n "$WEEK_INT" ] && [ -n "$SONNET_INT" ]; then
-            WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}% / Snt ${SONNET_COLOR} ${SONNET_INT}%"
-            [ -n "$WEEK_RESET_LABEL" ] && WEEK_SONNET_DISPLAY+=" ↻ ${WEEK_RESET_LABEL}"
-        elif [ -n "$WEEK_INT" ]; then
-            WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}%"
-            [ -n "$WEEK_RESET_LABEL" ] && WEEK_SONNET_DISPLAY+=" ↻ ${WEEK_RESET_LABEL}"
-        elif [ -n "$SONNET_INT" ]; then
-            WEEK_SONNET_DISPLAY="Snt ${SONNET_COLOR} ${SONNET_INT}%"
-        fi
     fi
 fi
 
-# ── Stale indicator — replace color dot with ⚠ when cache is stale ──────────
+# ── Stale indicator (flag; applied when building display strings below) ───────
 IS_STALE=0
 if [ -f "$USAGE_FILE" ] && [ "$REFRESH_INTERVAL" -gt 0 ] 2>/dev/null; then
     [ "$(cache_age_sec)" -gt $(( REFRESH_INTERVAL * 3 )) ] && IS_STALE=1
 fi
-[ "$IS_STALE" = 1 ] && [ -n "$BLOCK_DISPLAY" ] && \
-    BLOCK_DISPLAY=$(echo "$BLOCK_DISPLAY" | sed 's/🟢\|🟡\|🔴/⚠/')
+
+# ── Terminal width → detail level ─────────────────────────────────────────────
+# DETAIL 2 (≥100 cols): bars + colors + reset times + branch/model
+# DETAIL 1 (70–99 cols): bars + colors, no reset times, no branch/model
+# DETAIL 0 (<70 cols):   bars + % only, no colors, no branch/model
+TERM_WIDTH=${COLUMNS:-$(tput cols 2>/dev/null || echo 999)}
+if   [ "$TERM_WIDTH" -ge 100 ]; then DETAIL=2
+elif [ "$TERM_WIDTH" -ge 70  ]; then DETAIL=1
+else                                  DETAIL=0
+fi
+
+# ── Build session display ─────────────────────────────────────────────────────
+BLOCK_DISPLAY=""
+if [ -n "$SESS_BAR_STR" ]; then
+    SESS_COLOR_DISP="$SESS_BAR_COLOR"
+    [ "$IS_STALE" = 1 ] && SESS_COLOR_DISP="⚠"
+    case "$DETAIL" in
+        2) BLOCK_DISPLAY="⏳ ${SESS_COLOR_DISP} ${SESS_BAR_STR} ${SESS_INT}%${REMAIN_STR:+ ↻ $REMAIN_STR}" ;;
+        1) BLOCK_DISPLAY="⏳ ${SESS_COLOR_DISP} ${SESS_BAR_STR} ${SESS_INT}%" ;;
+        0) BLOCK_DISPLAY="⏳ ${SESS_BAR_STR} ${SESS_INT}%" ;;
+    esac
+fi
+
+# ── Build weekly + sonnet display ─────────────────────────────────────────────
+WEEK_SONNET_DISPLAY=""
+if [ -n "$WEEK_COLOR" ] && [ -n "$SONNET_COLOR" ]; then
+    case "$DETAIL" in
+        2) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}% / Snt ${SONNET_COLOR} ${SONNET_INT}%${WEEK_RESET_LABEL:+ ↻ $WEEK_RESET_LABEL}" ;;
+        1) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}% / Snt ${SONNET_COLOR} ${SONNET_INT}%" ;;
+        0) WEEK_SONNET_DISPLAY="📅 ${WEEK_INT}%/Snt ${SONNET_INT}%" ;;
+    esac
+elif [ -n "$WEEK_COLOR" ]; then
+    case "$DETAIL" in
+        2) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}%${WEEK_RESET_LABEL:+ ↻ $WEEK_RESET_LABEL}" ;;
+        1) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}%" ;;
+        0) WEEK_SONNET_DISPLAY="📅 ${WEEK_INT}%" ;;
+    esac
+elif [ -n "$SONNET_COLOR" ]; then
+    case "$DETAIL" in
+        2|1) WEEK_SONNET_DISPLAY="Snt ${SONNET_COLOR} ${SONNET_INT}%" ;;
+        0)   WEEK_SONNET_DISPLAY="Snt ${SONNET_INT}%" ;;
+    esac
+fi
 
 # ── Assemble ──────────────────────────────────────────────────────────────────
 PARTS=()
-[ -n "$BRANCH" ] && PARTS+=("🌿 $BRANCH$DIRTY")
-if [ -n "$MODEL" ] && [ -n "$EFFORT_LABEL" ]; then
-    PARTS+=("$MODEL/$EFFORT_LABEL")
-elif [ -n "$MODEL" ]; then
-    PARTS+=("$MODEL")
+if [ "$DETAIL" -ge 1 ]; then
+    [ -n "$BRANCH" ] && PARTS+=("🌿 $BRANCH$DIRTY")
+    if [ -n "$MODEL" ] && [ -n "$EFFORT_LABEL" ]; then
+        PARTS+=("$MODEL/$EFFORT_LABEL")
+    elif [ -n "$MODEL" ]; then
+        PARTS+=("$MODEL")
+    fi
 fi
 [ -n "$CTX_PERCENT" ]         && PARTS+=("$CTX_COLOR $CTX_LABEL $CTX_BAR ${CTX_PERCENT}%")
 [ -n "$BLOCK_DISPLAY" ]       && PARTS+=("$BLOCK_DISPLAY")
 [ -n "$WEEK_SONNET_DISPLAY" ] && PARTS+=("$WEEK_SONNET_DISPLAY")
 # Extra usage cost — only shown when session or weekly quota is at 100% (overage territory)
-if [ "$SESS_INT" -ge 100 ] || [ "$WEEK_INT" -ge 100 ]; then
+if [ "$SESS_INT" -ge 100 ] || [ "${WEEK_INT:-0}" -ge 100 ]; then
     if [ -n "$COST_STR" ] && [ -n "$DURATION_STR" ]; then
         PARTS+=("💸 +$COST_STR ⏱ $DURATION_STR")
     elif [ -n "$COST_STR" ]; then
