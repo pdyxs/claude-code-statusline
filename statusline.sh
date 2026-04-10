@@ -264,12 +264,15 @@ if [ -f "$USAGE_FILE" ] && [ "$REFRESH_INTERVAL" -gt 0 ] 2>/dev/null; then
 fi
 
 # ── Terminal width → detail level ─────────────────────────────────────────────
-# DETAIL 2 (≥100 cols): bars + colors + reset times + branch/model
-# DETAIL 1 (70–99 cols): bars + colors, no reset times, no branch/model
-# DETAIL 0 (<70 cols):   bars + % only, no colors, no branch/model
+# Drop order as width shrinks: bars → colors → reset times
+# DETAIL 3 (≥100 cols): bars + colors + reset times + branch/model
+# DETAIL 2 (70–99 cols): colors + reset times, no bars or branch/model
+# DETAIL 1 (50–69 cols): reset times only, no bars or colors
+# DETAIL 0 (<50 cols):   % only, no bars, colors, or reset times
 TERM_WIDTH=${COLUMNS:-$(tput cols 2>/dev/null || echo 999)}
-if   [ "$TERM_WIDTH" -ge 100 ]; then DETAIL=2
-elif [ "$TERM_WIDTH" -ge 70  ]; then DETAIL=1
+if   [ "$TERM_WIDTH" -ge 100 ]; then DETAIL=3
+elif [ "$TERM_WIDTH" -ge 70  ]; then DETAIL=2
+elif [ "$TERM_WIDTH" -ge 50  ]; then DETAIL=1
 else                                  DETAIL=0
 fi
 
@@ -279,9 +282,10 @@ if [ -n "$SESS_BAR_STR" ]; then
     SESS_COLOR_DISP="$SESS_BAR_COLOR"
     [ "$IS_STALE" = 1 ] && SESS_COLOR_DISP="⚠"
     case "$DETAIL" in
-        2) BLOCK_DISPLAY="⏳ ${SESS_COLOR_DISP} ${SESS_BAR_STR} ${SESS_INT}%${REMAIN_STR:+ ↻ $REMAIN_STR}" ;;
-        1) BLOCK_DISPLAY="⏳ ${SESS_COLOR_DISP} ${SESS_BAR_STR} ${SESS_INT}%" ;;
-        0) BLOCK_DISPLAY="⏳ ${SESS_BAR_STR} ${SESS_INT}%" ;;
+        3) BLOCK_DISPLAY="⏳ ${SESS_COLOR_DISP} ${SESS_BAR_STR} ${SESS_INT}%${REMAIN_STR:+ ↻ $REMAIN_STR}" ;;
+        2) BLOCK_DISPLAY="⏳ ${SESS_COLOR_DISP} ${SESS_INT}%${REMAIN_STR:+ ↻ $REMAIN_STR}" ;;
+        1) BLOCK_DISPLAY="⏳ ${SESS_INT}%${REMAIN_STR:+ ↻ $REMAIN_STR}" ;;
+        0) BLOCK_DISPLAY="⏳ ${SESS_INT}%" ;;
     esac
 fi
 
@@ -289,26 +293,28 @@ fi
 WEEK_SONNET_DISPLAY=""
 if [ -n "$WEEK_COLOR" ] && [ -n "$SONNET_COLOR" ]; then
     case "$DETAIL" in
+        3) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}% / Snt ${SONNET_COLOR} ${SONNET_INT}%${WEEK_RESET_LABEL:+ ↻ $WEEK_RESET_LABEL}" ;;
         2) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}% / Snt ${SONNET_COLOR} ${SONNET_INT}%${WEEK_RESET_LABEL:+ ↻ $WEEK_RESET_LABEL}" ;;
-        1) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}% / Snt ${SONNET_COLOR} ${SONNET_INT}%" ;;
+        1) WEEK_SONNET_DISPLAY="📅 ${WEEK_INT}% / Snt ${SONNET_INT}%${WEEK_RESET_LABEL:+ ↻ $WEEK_RESET_LABEL}" ;;
         0) WEEK_SONNET_DISPLAY="📅 ${WEEK_INT}%/Snt ${SONNET_INT}%" ;;
     esac
 elif [ -n "$WEEK_COLOR" ]; then
     case "$DETAIL" in
+        3) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}%${WEEK_RESET_LABEL:+ ↻ $WEEK_RESET_LABEL}" ;;
         2) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}%${WEEK_RESET_LABEL:+ ↻ $WEEK_RESET_LABEL}" ;;
-        1) WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}%" ;;
+        1) WEEK_SONNET_DISPLAY="📅 ${WEEK_INT}%${WEEK_RESET_LABEL:+ ↻ $WEEK_RESET_LABEL}" ;;
         0) WEEK_SONNET_DISPLAY="📅 ${WEEK_INT}%" ;;
     esac
 elif [ -n "$SONNET_COLOR" ]; then
     case "$DETAIL" in
-        2|1) WEEK_SONNET_DISPLAY="Snt ${SONNET_COLOR} ${SONNET_INT}%" ;;
-        0)   WEEK_SONNET_DISPLAY="Snt ${SONNET_INT}%" ;;
+        3|2) WEEK_SONNET_DISPLAY="Snt ${SONNET_COLOR} ${SONNET_INT}%" ;;
+        1|0) WEEK_SONNET_DISPLAY="Snt ${SONNET_INT}%" ;;
     esac
 fi
 
 # ── Assemble ──────────────────────────────────────────────────────────────────
 PARTS=()
-if [ "$DETAIL" -ge 1 ]; then
+if [ "$DETAIL" -ge 3 ]; then
     [ -n "$BRANCH" ] && PARTS+=("🌿 $BRANCH$DIRTY")
     if [ -n "$MODEL" ] && [ -n "$EFFORT_LABEL" ]; then
         PARTS+=("$MODEL/$EFFORT_LABEL")
@@ -316,7 +322,13 @@ if [ "$DETAIL" -ge 1 ]; then
         PARTS+=("$MODEL")
     fi
 fi
-[ -n "$CTX_PERCENT" ]         && PARTS+=("$CTX_COLOR $CTX_LABEL $CTX_BAR ${CTX_PERCENT}%")
+if [ "$DETAIL" -ge 3 ]; then
+    [ -n "$CTX_PERCENT" ] && PARTS+=("$CTX_COLOR $CTX_LABEL $CTX_BAR ${CTX_PERCENT}%")
+elif [ "$DETAIL" -ge 2 ]; then
+    [ -n "$CTX_PERCENT" ] && PARTS+=("$CTX_COLOR $CTX_LABEL ${CTX_PERCENT}%")
+elif [ -n "$CTX_PERCENT" ]; then
+    PARTS+=("$CTX_LABEL ${CTX_PERCENT}%")
+fi
 [ -n "$BLOCK_DISPLAY" ]       && PARTS+=("$BLOCK_DISPLAY")
 [ -n "$WEEK_SONNET_DISPLAY" ] && PARTS+=("$WEEK_SONNET_DISPLAY")
 # Extra usage cost — only shown when session or weekly quota is at 100% (overage territory)
