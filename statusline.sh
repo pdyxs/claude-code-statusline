@@ -270,6 +270,7 @@ fi
 # DETAIL 1 (30–49 cols): reset times only, no bars or colors
 # DETAIL 0 (<30 cols):   % only, no bars, colors, or reset times
 TERM_WIDTH=$(stty size </dev/tty 2>/dev/null | awk '{print $2}')
+[ -z "$TERM_WIDTH" ] && TERM_WIDTH=$(cat "$HOME/.claude/.terminal-cols" 2>/dev/null)
 [ -z "$TERM_WIDTH" ] && TERM_WIDTH=${COLUMNS:-$(tput cols 2>/dev/null || echo 999)}
 if   [ "$TERM_WIDTH" -ge 70 ]; then DETAIL=3
 elif [ "$TERM_WIDTH" -ge 50 ]; then DETAIL=2
