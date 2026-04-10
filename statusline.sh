@@ -187,7 +187,7 @@ if [ "$(cache_age_sec)" -gt "$REFRESH_INTERVAL" ]; then
 fi
 
 # ── Read cached usage metrics ─────────────────────────────────────────────────
-BLOCK_DISPLAY="" WEEK_SONNET_DISPLAY=""
+BLOCK_DISPLAY="" WEEK_SONNET_DISPLAY="" SESS_INT=0
 NOW=$(date +%s)
 
 if [ -f "$USAGE_FILE" ]; then
@@ -288,11 +288,15 @@ fi
 [ -n "$CTX_PERCENT" ]         && PARTS+=("$CTX_COLOR $CTX_LABEL $CTX_BAR ${CTX_PERCENT}%")
 [ -n "$BLOCK_DISPLAY" ]       && PARTS+=("$BLOCK_DISPLAY")
 [ -n "$WEEK_SONNET_DISPLAY" ] && PARTS+=("$WEEK_SONNET_DISPLAY")
-# Cost + duration (only if non-zero)
-if [ -n "$COST_STR" ] && [ -n "$DURATION_STR" ]; then
-    PARTS+=("$COST_STR ⏱ $DURATION_STR")
-elif [ -n "$COST_STR" ]; then
-    PARTS+=("$COST_STR")
+# Extra usage cost — only shown when session is at 100% (overage territory)
+if [ "$SESS_INT" -ge 100 ]; then
+    if [ -n "$COST_STR" ] && [ -n "$DURATION_STR" ]; then
+        PARTS+=("💸 +$COST_STR ⏱ $DURATION_STR")
+    elif [ -n "$COST_STR" ]; then
+        PARTS+=("💸 +$COST_STR")
+    elif [ -n "$DURATION_STR" ]; then
+        PARTS+=("💸 ⏱ $DURATION_STR")
+    fi
 fi
 
 RESULT=""
